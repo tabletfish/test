@@ -362,3 +362,55 @@ void loop() {
 
 
   
+
+
+#define EXT_SWITCH 0x04
+#define OC2B 0x08
+#define NUM_FREQ 6
+
+const float frequencies[NUM_FREQ] = {
+  261.63,
+  293.66,
+  329.63,
+  349.23,
+  400.00,
+  493.88
+};
+
+volatile int8_t freq_count = 0;
+
+ISR(INT0_vect){
+  freq_count = (freq_count + 1) % NUM_FREQ;
+  float freq_target = frequencies[freq_count];
+  OCR2A = F_CPU / 256 / freq_target - 1;
+  OCR2B = OCR2A / 2;
+
+  for(uint16_t j = 0; j < 50; j++){
+    for(uint16_t i = 0; i < 64000; i++){
+      asm("nop");
+    }
+  }
+}
+
+void setup() {
+  cli();
+
+  DDRD &= ~EXT_SWITCH;
+  EICRA |= 0x03;
+  EIMSK |= 0x01;
+
+  DDRD |= OC2B;
+
+  TCCR2A = (1 << WGM21) | (1 << WGM20);
+  TCCR2B = (1 << CS22) | (1 << CS21) | (1 << CS20);
+  TCCR2A |= (1 << COM2B1);
+
+  float freq_target = frequencies[freq_count];
+  OCR2A = F_CPU / 256 / freq_target - 1;
+  OCR2B = OCR2A / 2;
+
+  sei();
+}
+
+void loop() {
+}
