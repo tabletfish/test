@@ -414,3 +414,45 @@ void setup() {
 
 void loop() {
 }
+
+
+
+
+
+
+
+
+volatile uint16_t value = 0;
+volatile int readFlag = 0;
+
+ISR(ADC_vect){
+  readFlag = 1;
+  value = ADC;
+}
+
+void init_ADC(){
+  ADMUX |= (0 << REFS1) | (1 << REFS0);
+  ADMUX |= (0 << MUX3) | (0 << MUX2) | (0 << MUX1) | (0 << MUX0);
+  ADCSRA |= (1 << ADEN);
+  ADCSRA |= (1 << ADIE);
+  ADCSRA |= (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
+}
+
+void setup() {
+  Serial.begin(912600);
+  init_ADC();
+  sei();
+  ADCSRA |= (1 << ADSC);
+}
+
+void loop() {
+  if (readFlag == 1) {
+    readFlag = 0;
+    Serial.println(value);
+    delay(1000);
+    Serial.println("Wait for ADC result again.");
+    ADCSRA |= (1 << ADSC);
+  } else {
+    Serial.print(".");
+  }
+}
