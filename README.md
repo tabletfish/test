@@ -1,458 +1,104 @@
+#define LED_BLUE_BIT    3
+#define LED_GREEN_BIT   1
+#define LED_RED_BIT     6
 
-#define LED_GREEN  0x01
-#define LED_RED    0x02
-#define EXTERNAL_SW 0x04
+#define FOSC 16000000
+#define BAUD 9600
+
+unsigned char readData = NULL;
 
 void setup() {
-  DDRB = LED_GREEN | LED_RED;
-  DDRD &= ~EXTERNAL_SW;
-  EICRA |= 0x01;
-  EIMSK |= 0x01;
+  DDRB |= (1 << LED_BLUE_BIT) | (1 << LED_GREEN_BIT);
+  DDRD |= (1 << LED_RED_BIT);
+
+  // USART: Asynchronous Normal Mode
+  // UCSRA = 0b 0000 0000;
+  // -> (0) U2X: (double the USART transmission speed) Normal
+  // UCSRB = 0b 1001 1000;
+  // -> (1) RXCIE: RX complete interrupt enable
+  // -> (1) RXEN: Receiver enable
+  // -> (1) TXEN: Transmitter enable
+  // UCSRC = 0b 1000 0110;
+  // -> (00) UMSLE01, UMSLE00: (UMSEL0 Bits Settings) Asynchronous USART
+  // -> (00) UPM01, UPM00: (Parity mode) disabled
+  // -> (1) USBS0: (USBS bit settings) 1-bit
+  // -> (011) UCSZ02, UCSZ01, UCSZ00: (Character size) 8-bit
+
+  uint16_t ubrr = FOSC / 16 / BAUD - 1;
+  UBRR0H = (unsigned char)(ubrr >> 8);
+  UBRR0L = (unsigned char)ubrr;
+
+  UCSRB |= (1 << RXCIE);
+  UCSRB |= (1 << RXEN) | (1 << TXEN);
+  UCSRC |= (1 << USBS0);
+  UCSRC |= (1 << UCSZ01) | (1 << UCSZ00);
+}
+
+ISR(USART_RX_vect){
+  readData = UDR0;
 }
 
 void loop() {
-  PORTB |= LED_GREEN;
-  PORTB &= ~LED_RED;
+  if (readData == 'r'){
+    PORTB &= ~(1 << LED_BLUE_BIT);
+    PORTB &= ~(1 << LED_GREEN_BIT);
+    PORTD |=  (1 << LED_RED_BIT);
+  }
+  else if (readData == 'g'){
+    PORTB &= ~(1 << LED_BLUE_BIT);
+    PORTD &= ~(1 << LED_RED_BIT);
+    PORTB |=  (1 << LED_GREEN_BIT);
+  }
+  else if (readData == 'b'){
+    PORTB |=  (1 << LED_BLUE_BIT);
+    PORTB &= ~(1 << LED_GREEN_BIT);
+    PORTD &= ~(1 << LED_RED_BIT);
+  }
+  else if (readData == 'o'){
+    PORTB &= ~(1 << LED_BLUE_BIT);
+    PORTB &= ~(1 << LED_GREEN_BIT);
+    PORTD &= ~(1 << LED_RED_BIT);
+  }
+  else{
+    readData = NULL;
+  }
 }
 
 
-
-
-ISR(INT0_vect){
-  PORTB &= ~LED_GREEN;
-  PORTB |= LED_RED;
-
-  for(uint16_t i = 0; i <= 64000; i++){
-    asm("nop");
-  }
-
-  PORTB &= ~LED_RED;
-
-  for(uint16_t i = 0; i <= 64000; i++){
-    asm("nop");
-  }
-
-  PORTB |= LED_RED;
-
-  for(uint16_t i = 0; i <= 64000; i++){
-    asm("nop");
-  }
-
-  PORTB |= LED_GREEN;
-
-  for(uint16_t i = 0; i <= 64000; i++){
-    asm("nop");
-  }
-
-  PORTB &= ~LED_GREEN;
-}
-
-
-
-
-#define LED_GREEN 8
-#define LED_RED 9
-#define EXTERNAL_SW 2
+#define LED_RED     6
+#define LED_GREEN   9
+#define LED_BLUE    11
 
 void setup() {
-  pinMode(LED_GREEN, OUTPUT);
+  Serial.begin(9600);
   pinMode(LED_RED, OUTPUT);
-  pinMode(EXTERNAL_SW, INPUT);
-  attachInterrupt(0, background, FALLING);
+  pinMode(LED_GREEN, OUTPUT);
+  pinMode(LED_BLUE, OUTPUT);
 }
 
 void loop() {
-  digitalWrite(LED_GREEN, HIGH);
-  digitalWrite(LED_RED, LOW);
-}
-
-void background() {
-  digitalWrite(LED_GREEN, LOW);
-  digitalWrite(LED_RED, HIGH);
-
-  for(uint16_t i = 0; i <= 64000; i++){
-    asm("nop");
-  }
-
-  digitalWrite(LED_RED, LOW);
-
-  for(uint16_t i = 0; i <= 64000; i++){
-    asm("nop");
-  }
-
-  digitalWrite(LED_RED, HIGH);
-
-  for(uint16_t i = 0; i <= 64000; i++){
-    asm("nop");
-  }
-
-  digitalWrite(LED_GREEN, HIGH);
-
-  for(uint16_t i = 0; i <= 64000; i++){
-    asm("nop");
-  }
-
-  digitalWrite(LED_GREEN, LOW);
-  }
-
-
-
-
-#define LED_GREEN 0x01
-#define LED_RED   0x02
-#define EXTERNAL_SW 0x04
-
-void setup() {
-  DDRB = LED_GREEN | LED_RED;
-  DDRD &= ~EXTERNAL_SW;
-  PCICR |= 0x04;
-  PCMSK2 |= 0x04;
-}
-
-void loop() {
-  PORTB |= LED_GREEN;
-  PORTB &= ~LED_RED;
-}
-
-
-
-ISR(PCINT2_vect){
-  PORTB &= ~LED_GREEN;
-  PORTB |= LED_RED;
-
-  for(uint16_t i = 0; i <= 64000; i++){
-    asm("nop");
-  }
-
-  PORTB &= ~LED_RED;
-
-  for(uint16_t i = 0; i <= 64000; i++){
-    asm("nop");
-  }
-
-  PORTB |= LED_RED;
-
-  for(uint16_t i = 0; i <= 64000; i++){
-    asm("nop");
-  }
-
-  PORTB |= LED_GREEN;
-
-  for(uint16_t i = 0; i <= 64000; i++){
-    asm("nop");
-  }
-
-  PORTB &= ~LED_GREEN;
-}
-
-
-
-
-
-
-
-
-  
-#define OC2A 0x08
-#define OC2B 0x10
-
-volatile int8_t deltaA = 1;
-volatile int8_t deltaB = -1;
-
-ISR(TIMER2_COMPA_vect){
-  if(OCR2A == 255){
-    deltaA = -1;
-  }
-  else if(OCR2A == 0){
-    deltaA = 1;
-  }
-  OCR2A += deltaA;
-}
-
-ISR(TIMER2_COMPB_vect){
-  if(OCR2B == 255){
-    deltaB = -1;
-  }
-  else if(OCR2B == 0){
-    deltaB = 1;
-  }
-  OCR2B += deltaB;
-}
-
-void setup() {
-  cli();
-  DDRB |= OC2A;
-  DDRD |= OC2B;
-
-  TCCR2A |= (1 << WGM21) | (1 << WGM20);
-  TCCR2B |= (1 << CS22) | (1 << CS21) | (1 << CS20);
-
-  TCCR2A |= (1 << COM2A1);
-  TIMSK2 |= (1 << OCIE2A);
-
-  TCCR2A |= (1 << COM2B1);
-  TIMSK2 |= (1 << OCIE2B);
-
-  OCR2A = 0;
-  OCR2B = 255;
-
-  sei();
-}
-
-void loop() {
-}
-
-
-
-
-
-
-
-#define OC2A 0x08
-#define OC0A 0x40
-
-volatile int8_t delta1 = 1;
-volatile int8_t delta2 = -1;
-
-ISR(TIMER2_COMPA_vect){
-  if(OCR2A == 255){
-    delta1 = -1;
-  }
-  else if(OCR2A == 0){
-    delta1 = 1;
-  }
-  OCR2A += delta1;
-}
-
-ISR(TIMER0_COMPA_vect){
-  if(OCR0A == 255){
-    delta2 = -1;
-  }
-  else if(OCR0A == 0){
-    delta2 = 1;
-  }
-  OCR0A += delta2;
-}
-
-void setup() {
-  cli();
-
-  DDRB |= OC2A;
-  DDRB |= OC0A;
-
-  TCCR2A |= (1 << WGM21) | (1 << WGM20);
-  TCCR2B |= (1 << CS22) | (1 << CS21) | (1 << CS20);
-  TCCR2A |= (1 << COM2A1);
-  TIMSK2 |= (1 << OCIE2A);
-
-  TCCR0A |= (1 << WGM01) | (1 << WGM00);
-  TCCR0B |= (1 << CS01);
-  TCCR0A |= (1 << COM0A1);
-  TIMSK0 |= (1 << OCIE0A);
-
-  OCR2A = 0;
-  OCR0A = 255;
-
-  sei();
-}
-
-void loop() {
-}
-
-
-
-
-
-
-#define EXT_SWITCH 0x04
-#define OC2B 0x08
-#define NUM_FREQ 6
-
-const float frequencies[NUM_FREQ] = {
-  261.63,
-  293.66,
-  329.63,
-  349.23,
-  400.00,
-  493.88
-};
-
-volatile int8_t freq_count = 0;
-
-ISR(INT0_vect){
-  freq_count = (freq_count + 1) % NUM_FREQ;
-  float freq_target = frequencies[freq_count];
-  OCR2A = F_CPU / 256 / freq_target - 1;
-  OCR2B = OCR2A / 2;
-
-  for(uint16_t j = 0; j < 50; j++){
-    for(uint16_t i = 0; i < 64000; i++){
-      asm("nop");
+  if (Serial.available() > 0){
+    char readData = Serial.read();
+
+    if (readData == 'r'){
+      digitalWrite(LED_RED, HIGH);
+      digitalWrite(LED_GREEN, LOW);
+      digitalWrite(LED_BLUE, LOW);
     }
-  }
-}
-
-void setup() {
-  cli();
-
-  DDRD &= ~EXT_SWITCH;
-  EICRA |= 0x03;
-  EIMSK |= 0x01;
-
-  DDRD |= OC2B;
-
-  TCCR2A = (1 << WGM21) | (1 << WGM20);
-  TCCR2B = (1 << CS22) | (1 <<
-
-
-
-
-
-
-#define EXT_SWITCH 0x04
-#define OC2B 0x08
-#define NUM_FREQ 6
-
-const float frequencies[NUM_FREQ] = {
-  261.63,
-  293.66,
-  329.63,
-  349.23,
-  400.00,
-  493.88
-};
-
-volatile int8_t freq_count = 0;
-
-ISR(INT0_vect){
-  freq_count = (freq_count + 1) % NUM_FREQ;
-  float freq_target = frequencies[freq_count];
-  OCR2A = F_CPU / 256 / freq_target - 1;
-  OCR2B = OCR2A / 2;
-
-  for(uint16_t j = 0; j < 50; j++){
-    for(uint16_t i = 0; i < 64000; i++){
-      asm("nop");
+    else if (readData == 'g'){
+      digitalWrite(LED_RED, LOW);
+      digitalWrite(LED_GREEN, HIGH);
+      digitalWrite(LED_BLUE, LOW);
     }
-  }
-}
-
-void setup() {
-  cli();
-
-  DDRD &= ~EXT_SWITCH;
-  EICRA |= 0x03;
-  EIMSK |= 0x01;
-
-  DDRD |= OC2B;
-
-  TCCR2A = (1 << WGM21) | (1 << WGM20);
-  TCCR2B = (1 << CS22) | (1 << CS21) | (1 << CS20);
-  TCCR2A |= (1 << COM2B1);
-
-  float freq_target = frequencies[freq_count];
-  OCR2A = F_CPU / 256 / freq_target - 1;
-  OCR2B = OCR2A / 2;
-
-  sei();
-}
-
-void loop() {
-}
-
-
-  
-
-
-#define EXT_SWITCH 0x04
-#define OC2B 0x08
-#define NUM_FREQ 6
-
-const float frequencies[NUM_FREQ] = {
-  261.63,
-  293.66,
-  329.63,
-  349.23,
-  400.00,
-  493.88
-};
-
-volatile int8_t freq_count = 0;
-
-ISR(INT0_vect){
-  freq_count = (freq_count + 1) % NUM_FREQ;
-  float freq_target = frequencies[freq_count];
-  OCR2A = F_CPU / 256 / freq_target - 1;
-  OCR2B = OCR2A / 2;
-
-  for(uint16_t j = 0; j < 50; j++){
-    for(uint16_t i = 0; i < 64000; i++){
-      asm("nop");
+    else if (readData == 'b'){
+      digitalWrite(LED_RED, LOW);
+      digitalWrite(LED_GREEN, LOW);
+      digitalWrite(LED_BLUE, HIGH);
     }
-  }
-}
-
-void setup() {
-  cli();
-
-  DDRD &= ~EXT_SWITCH;
-  EICRA |= 0x03;
-  EIMSK |= 0x01;
-
-  DDRD |= OC2B;
-
-  TCCR2A = (1 << WGM21) | (1 << WGM20);
-  TCCR2B = (1 << CS22) | (1 << CS21) | (1 << CS20);
-  TCCR2A |= (1 << COM2B1);
-
-  float freq_target = frequencies[freq_count];
-  OCR2A = F_CPU / 256 / freq_target - 1;
-  OCR2B = OCR2A / 2;
-
-  sei();
-}
-
-void loop() {
-}
-
-
-
-
-
-
-
-
-volatile uint16_t value = 0;
-volatile int readFlag = 0;
-
-ISR(ADC_vect){
-  readFlag = 1;
-  value = ADC;
-}
-
-void init_ADC(){
-  ADMUX |= (0 << REFS1) | (1 << REFS0);
-  ADMUX |= (0 << MUX3) | (0 << MUX2) | (0 << MUX1) | (0 << MUX0);
-  ADCSRA |= (1 << ADEN);
-  ADCSRA |= (1 << ADIE);
-  ADCSRA |= (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
-}
-
-void setup() {
-  Serial.begin(912600);
-  init_ADC();
-  sei();
-  ADCSRA |= (1 << ADSC);
-}
-
-void loop() {
-  if (readFlag == 1) {
-    readFlag = 0;
-    Serial.println(value);
-    delay(1000);
-    Serial.println("Wait for ADC result again.");
-    ADCSRA |= (1 << ADSC);
-  } else {
-    Serial.print(".");
+    else if (readData == 'o'){
+      digitalWrite(LED_RED, LOW);
+      digitalWrite(LED_GREEN, LOW);
+      digitalWrite(LED_BLUE, LOW);
+    }
   }
 }
