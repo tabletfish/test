@@ -1,104 +1,135 @@
-#define LED_BLUE_BIT    3
-#define LED_GREEN_BIT   1
-#define LED_RED_BIT     6
+// Master of SPI
+#include <SPI.h>
 
-#define FOSC 16000000
-#define BAUD 9600
+char data;
 
-unsigned char readData = NULL;
+uint8_t transfer_SPI(uint8_t data){
+  // Activate slave
+  digitalWrite(SS, LOW);     // ①
 
-void setup() {
-  DDRB |= (1 << LED_BLUE_BIT) | (1 << LED_GREEN_BIT);
-  DDRD |= (1 << LED_RED_BIT);
+  // Send data
+  SPDR = data;
+  while(!(SPSR & (1 << SPIF)));
 
-  // USART: Asynchronous Normal Mode
-  // UCSRA = 0b 0000 0000;
-  // -> (0) U2X: (double the USART transmission speed) Normal
-  // UCSRB = 0b 1001 1000;
-  // -> (1) RXCIE: RX complete interrupt enable
-  // -> (1) RXEN: Receiver enable
-  // -> (1) TXEN: Transmitter enable
-  // UCSRC = 0b 1000 0110;
-  // -> (00) UMSLE01, UMSLE00: (UMSEL0 Bits Settings) Asynchronous USART
-  // -> (00) UPM01, UPM00: (Parity mode) disabled
-  // -> (1) USBS0: (USBS bit settings) 1-bit
-  // -> (011) UCSZ02, UCSZ01, UCSZ00: (Character size) 8-bit
+  // Deactivate slave
+  digitalWrite(SS, HIGH);    // ②
 
-  uint16_t ubrr = FOSC / 16 / BAUD - 1;
-  UBRR0H = (unsigned char)(ubrr >> 8);
-  UBRR0L = (unsigned char)ubrr;
-
-  UCSRB |= (1 << RXCIE);
-  UCSRB |= (1 << RXEN) | (1 << TXEN);
-  UCSRC |= (1 << USBS0);
-  UCSRC |= (1 << UCSZ01) | (1 << UCSZ00);
+  return SPDR;
 }
-
-ISR(USART_RX_vect){
-  readData = UDR0;
-}
-
-void loop() {
-  if (readData == 'r'){
-    PORTB &= ~(1 << LED_BLUE_BIT);
-    PORTB &= ~(1 << LED_GREEN_BIT);
-    PORTD |=  (1 << LED_RED_BIT);
-  }
-  else if (readData == 'g'){
-    PORTB &= ~(1 << LED_BLUE_BIT);
-    PORTD &= ~(1 << LED_RED_BIT);
-    PORTB |=  (1 << LED_GREEN_BIT);
-  }
-  else if (readData == 'b'){
-    PORTB |=  (1 << LED_BLUE_BIT);
-    PORTB &= ~(1 << LED_GREEN_BIT);
-    PORTD &= ~(1 << LED_RED_BIT);
-  }
-  else if (readData == 'o'){
-    PORTB &= ~(1 << LED_BLUE_BIT);
-    PORTB &= ~(1 << LED_GREEN_BIT);
-    PORTD &= ~(1 << LED_RED_BIT);
-  }
-  else{
-    readData = NULL;
-  }
-}
-
-
-#define LED_RED     6
-#define LED_GREEN   9
-#define LED_BLUE    11
 
 void setup() {
   Serial.begin(9600);
-  pinMode(LED_RED, OUTPUT);
-  pinMode(LED_GREEN, OUTPUT);
-  pinMode(LED_BLUE, OUTPUT);
+
+  // SPI (Serial Peripheral Interface) - MASTER
+  // SPCR (SPI Control Register) = 0b 0101 0001;
+  // => (1) SPE: SPI Enable
+  // => (1) MSTR: Master/Slave Select
+  // => (01) SPR1:0: prescaler fosc / 16
+  // SPSR (SPI Status Register) = 0b 0000 0000;
+  // => SPI2X = 0: Double Speed Bit
+
+  // Data direction
+  pinMode(MOSI, OUTPUT);
+  pinMode(SCK, OUTPUT);
+  pinMode(SS, OUTPUT);
+
+  // Set registers
+  SPCR |= (1 << SPE) | (1 << MSTR) | (0 << SPR1) | (1 << SPR0);
 }
 
-void loop() {
-  if (Serial.available() > 0){
-    char readData = Serial.read();
+void loop () {
+  if (Serial.available()){
+    data = Serial.read();
+    transfer_SPI(data);
+  }
+  else {
+    // Send NULL: request data
+    data = transfer_SPI(NULL);
+    if (data != NULL){
+      Serial.write(data);
+    }
+  }
+  delay(1);
+}
 
-    if (readData == 'r'){
-      digitalWrite(LED_RED, HIGH);
-      digitalWrite(LED_GREEN, LOW);
-      digitalWrite(LED_BLUE, LOW);
+
+
+
+
+// Slave of SPI
+#include <LiquidCrystal_I2C.h>
+#include <SPI.h>
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+char buf[10];
+volatile uint8_t data;
+volatile uint8_t pos = 0;
+volatile boolean flush = false;
+
+ISR (SPI_STC_vect) {
+  if (Serial.available()) {
+    data = Serial.read();
+    SPDR = data;
+  }
+  else {
+    // data transferred from master
+    data = SPDR;
+
+    if (data != NULL) {
+      if (data == '\n' || data == '\r') {
+        flush = true;
+      }
+      else {
+        buf[pos++] = data;
+      }
     }
-    else if (readData == 'g'){
-      digitalWrite(LED_RED, LOW);
-      digitalWrite(LED_GREEN, HIGH);
-      digitalWrite(LED_BLUE, LOW);
-    }
-    else if (readData == 'b'){
-      digitalWrite(LED_RED, LOW);
-      digitalWrite(LED_GREEN, LOW);
-      digitalWrite(LED_BLUE, HIGH);
-    }
-    else if (readData == 'o'){
-      digitalWrite(LED_RED, LOW);
-      digitalWrite(LED_GREEN, LOW);
-      digitalWrite(LED_BLUE, LOW);
+
+    if (pos >= sizeof(buf)) {
+      flush = true;
     }
   }
 }
+
+void setup() {
+  Serial.begin(9600);
+
+  // SPI (Serial Peripheral Interface) - SLAVE
+  // SPCR (SPI Control Register) = 0b 1100 0001;
+  // => (1) SPIE: SPI Interrupt Enable
+  // => (1) SPE: SPI Enable
+  // => (0) MSTR: Master/Slave Select
+  // SPR1:0 = 01: prescaler 16
+  // SPSR (SPI Status Register) = 0b 0000 0000;
+  // => SPI2X = 0: Double SPI Speed Bit
+
+  pinMode(MISO, OUTPUT);
+  pinMode(MOSI, INPUT);
+  pinMode(SCK, INPUT);
+  pinMode(SS, INPUT);
+
+  // Set registers
+  SPCR |= (1 << SPIE) | (1 << SPE) | (0 << SPR1) | (1 << SPR0);
+
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("Hello World");
+}
+
+void loop() {
+  if (flush) {
+    lcd.clear();
+    buf[pos] = NULL;
+
+    Serial.println(buf);
+    lcd.setCursor(1, 1);
+    lcd.print(buf);
+
+    pos = 0;
+    flush = false;
+  }
+  delay(1);
+}
+
+
