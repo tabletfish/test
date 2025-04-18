@@ -1,4 +1,4 @@
-// Master of SPI
+#// Master of SPI
 #include <SPI.h>
 
 char data;
